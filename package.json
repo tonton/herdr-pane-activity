@@ -1,0 +1,15 @@
+{
+  "name": "herdr-tab-activity",
+  "version": "0.1.0",
+  "private": true,
+  "description": "herdr plugin: rename tabs and agents to reflect what they're currently doing",
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "node tests/smoke.mts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "typescript": "^5.9.3"
+  }
+}
