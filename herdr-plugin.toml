@@ -1,25 +1,13 @@
-id = "tonton.tab-activity"
-name = "Tab & Agent Activity Name"
-version = "0.1.0"
+id = "tonton.agent-activity-name"
+name = "Agent Activity Name"
+version = "0.2.0"
 min_herdr_version = "0.7.0"
-description = "Rename tabs and agents to reflect what they're currently doing, using each pane's live terminal/resume title."
+description = "Rename herdr agents to reflect what they're currently doing, using each pane's live terminal/resume title."
 platforms = ["linux", "macos", "windows"]
 
 [[actions]]
 id = "sync"
-title = "Sync activity names now"
-command = ["node", "sync.mts"]
-
-[[events]]
-on = "tab.created"
-command = ["node", "sync.mts"]
-
-[[events]]
-on = "tab.focused"
-command = ["node", "sync.mts"]
-
-[[events]]
-on = "tab.moved"
+title = "Sync agent names now"
 command = ["node", "sync.mts"]
 
 [[events]]

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Functional test: runs sync.mts against tests/fake-herdr.mts (a stub
-// `herdr` binary) and asserts which agent/tab renames it did — and, just as
+// `herdr` binary) and asserts which agent renames it did — and, just as
 // important, which ones it correctly left alone.
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -17,59 +17,28 @@ const fixtures = {
     // Descriptive title, never renamed before -> should be renamed.
     {
       pane_id: "w1:p1",
-      tab_id: "w1:t1",
       agent: "claude",
       terminal_title_stripped: "PRの認証バグを調査",
     },
     // Boring/idle title -> left alone.
     {
       pane_id: "w1:p2",
-      tab_id: "w1:t2",
       agent: "claude",
       terminal_title_stripped: "Claude Code",
     },
     // Descriptive title, but user already gave it a manual name -> protected.
     {
       pane_id: "w1:p3",
-      tab_id: "w1:t3",
       agent: "codex",
       name: "my-manual-agent-name",
       terminal_title_stripped: "別タスクを実行中",
     },
   ],
-  tabs: [
-    { tab_id: "w1:t1", label: "1" },
-    // Numeric default label, boring pane title -> falls back to cwd.
-    { tab_id: "w1:t2", label: "2" },
-    // Manual label, descriptive pane title -> protected.
-    { tab_id: "w1:t3", label: "my-tab" },
-  ],
-  panes: [
-    {
-      pane_id: "w1:p1",
-      tab_id: "w1:t1",
-      focused: true,
-      cwd: "/work/api",
-      terminal_title_stripped: "PRの認証バグを調査",
-    },
-    {
-      pane_id: "w1:p2",
-      tab_id: "w1:t2",
-      focused: true,
-      cwd: "/work/frontend",
-      terminal_title_stripped: "Claude Code",
-    },
-    {
-      pane_id: "w1:p3",
-      tab_id: "w1:t3",
-      focused: true,
-      cwd: "/work/infra",
-      terminal_title_stripped: "別タスクを実行中",
-    },
-  ],
+  tabs: [],
+  panes: [],
 };
 
-const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "herdr-tab-activity-"));
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "herdr-agent-activity-"));
 const fixturesFile = path.join(tmp, "fixtures.json");
 const callLogFile = path.join(tmp, "calls.json");
 const stateDir = path.join(tmp, "state");
@@ -134,19 +103,6 @@ assertNotCalled(
 assertNotCalled(
   ["agent", "rename", "w1:p3"],
   "does not overwrite a manually-set agent name",
-);
-
-assertCalled(
-  ["tab", "rename", "w1:t1", "PRの認証バグを調査"],
-  "renames a default-numbered tab to the activity title",
-);
-assertCalled(
-  ["tab", "rename", "w1:t2", "frontend"],
-  "falls back to the cwd basename when the title is boring",
-);
-assertNotCalled(
-  ["tab", "rename", "w1:t3"],
-  "does not overwrite a manually-labeled tab",
 );
 
 const ownedAgents = JSON.parse(

@@ -1,8 +1,10 @@
 #!/usr/bin/env node
-// Tab & Agent Activity Name: rename agents (and, optionally, their tabs) to
-// the pane's live terminal title — the same "resume title" agent CLIs like
-// Claude Code write via OSC 0/2 once they have a one-line summary of what
-// they're doing. Runs as a herdr plugin event hook / action.
+// Agent Activity Name: rename each herdr agent to its pane's live terminal
+// title — the same "resume title" agent CLIs like Claude Code write via OSC
+// 0/2 once they have a one-line summary of what they're doing. herdr reads
+// this name through to the pane's own label, so renaming the agent is
+// enough to update what's shown for the pane too. Runs as a herdr plugin
+// event hook / action.
 //
 // This is TypeScript executed directly by Node's type stripping (Node
 // 22.18+), so the source file is also the artifact — no build step. Only
@@ -12,58 +14,33 @@
 // app's generic idle title (e.g. "Claude Code") or a bare shell prompt
 // (`user@host:~`) — see BORING_TITLES / SHELL_PROMPT_RE.
 //
-// Manual renames are respected, the same way as for tab labels: an agent is
-// only relabeled while its current name is still one this plugin set earlier
-// (tracked in HERDR_PLUGIN_STATE_DIR/agent-names.json), and a tab only while
-// its label is the herdr default (a bare number) or one this plugin set
-// earlier (HERDR_PLUGIN_STATE_DIR/tab-labels.json). Set `overwrite_manual`
-// to true in HERDR_PLUGIN_CONFIG_DIR/config.json to relabel everything.
+// Manual renames are respected: an agent is only relabeled while its
+// current name is still one this plugin set earlier (tracked in
+// HERDR_PLUGIN_STATE_DIR/agent-names.json). Set `overwrite_manual` to true
+// in HERDR_PLUGIN_CONFIG_DIR/config.json to relabel every agent.
 
 import { spawnSync } from "node:child_process";
 import fs from "node:fs";
-import os from "node:os";
 import path from "node:path";
 
 type AgentInfo = {
   pane_id: string;
-  tab_id: string;
   agent?: string;
   name?: string;
   terminal_title?: string;
   terminal_title_stripped?: string;
 };
 
-type TabInfo = {
-  tab_id: string;
-  label: string;
-};
-
-type PaneInfo = {
-  pane_id: string;
-  tab_id: string;
-  focused: boolean;
-  agent?: string;
-  cwd?: string | null;
-  foreground_cwd?: string | null;
-  terminal_title?: string;
-  terminal_title_stripped?: string;
-};
-
 type Config = {
-  renameAgents: boolean;
-  renameTabs: boolean;
   overwriteManual: boolean;
   agentMaxLength: number;
-  tabMaxLength: number;
-  tabFallbackToCwd: boolean;
   extraBoringTitles: readonly string[];
 };
 
-// Names/labels this plugin set earlier, keyed by pane/tab id.
+// Names this plugin set earlier, keyed by pane id.
 type OwnedMap = Record<string, string>;
 
 const HERDR = process.env.HERDR_BIN_PATH || "herdr";
-const DEFAULT_TAB_LABEL = /^[0-9]+$/;
 const SHELL_PROMPT_RE = /^[\w.-]+@[\w.-]+:/;
 
 // Generic titles agent CLIs show before they have anything to say — never
@@ -126,16 +103,10 @@ function loadConfig(): Config {
     ? raw.extra_boring_titles.filter((v): v is string => typeof v === "string")
     : [];
   return {
-    renameAgents: raw.rename_agents !== false,
-    renameTabs: raw.rename_tabs !== false,
     overwriteManual: raw.overwrite_manual === true,
     agentMaxLength: Number.isInteger(raw.agent_max_length)
       ? (raw.agent_max_length as number)
       : 60,
-    tabMaxLength: Number.isInteger(raw.tab_max_length)
-      ? (raw.tab_max_length as number)
-      : 24,
-    tabFallbackToCwd: raw.tab_fallback_to_cwd !== false,
     extraBoringTitles,
   } satisfies Config;
 }
@@ -166,17 +137,6 @@ function activityTitle(
     return null;
   }
   return title;
-}
-
-function cwdLabel(pane: PaneInfo): string | null {
-  const cwd = pane.foreground_cwd || pane.cwd || null;
-  if (!cwd) {
-    return null;
-  }
-  if (cwd === os.homedir()) {
-    return "~";
-  }
-  return path.basename(cwd) || cwd;
 }
 
 function syncAgents(config: Config, stateDir: string | undefined): void {
@@ -215,68 +175,15 @@ function syncAgents(config: Config, stateDir: string | undefined): void {
   }
 }
 
-function syncTabs(config: Config, stateDir: string | undefined): void {
-  const stateFile = stateDir ? path.join(stateDir, "tab-labels.json") : null;
-  const owned: OwnedMap = stateFile ? readJson<OwnedMap>(stateFile, {}) : {};
-  const nextOwned: OwnedMap = {};
-
-  const tabs = call<{ tabs?: TabInfo[] }>(["tab", "list"]).tabs ?? [];
-  const panes = call<{ panes?: PaneInfo[] }>(["pane", "list"]).panes ?? [];
-
-  for (const tab of tabs) {
-    const isOwned =
-      DEFAULT_TAB_LABEL.test(tab.label) || owned[tab.tab_id] === tab.label;
-    if (!isOwned && !config.overwriteManual) {
-      continue;
-    }
-
-    const tabPanes = panes.filter((pane) => pane.tab_id === tab.tab_id);
-    if (tabPanes.length === 0) {
-      continue;
-    }
-    const pane = tabPanes.find((p) => p.focused) ?? tabPanes[0];
-
-    const title = activityTitle(pane, config.extraBoringTitles);
-    const label = title
-      ? truncate(title, config.tabMaxLength)
-      : config.tabFallbackToCwd
-        ? cwdLabel(pane)
-        : null;
-
-    if (!label) {
-      if (owned[tab.tab_id] === tab.label) {
-        nextOwned[tab.tab_id] = tab.label;
-      }
-      continue;
-    }
-
-    if (label !== tab.label) {
-      call(["tab", "rename", tab.tab_id, label]);
-    }
-    nextOwned[tab.tab_id] = label;
-  }
-
-  if (stateFile) {
-    writeJsonAtomic(stateFile, nextOwned);
-  }
-}
-
 function main(): void {
   const config = loadConfig();
-  const stateDir = process.env.HERDR_PLUGIN_STATE_DIR;
-
-  if (config.renameAgents) {
-    syncAgents(config, stateDir);
-  }
-  if (config.renameTabs) {
-    syncTabs(config, stateDir);
-  }
+  syncAgents(config, process.env.HERDR_PLUGIN_STATE_DIR);
 }
 
 try {
   main();
 } catch (error) {
   const message = error instanceof Error ? error.message : String(error);
-  console.error(`tab-activity: ${message}`);
+  console.error(`agent-activity-name: ${message}`);
   process.exit(1);
 }
