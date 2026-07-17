@@ -1,0 +1,15 @@
+{
+  "name": "herdr-agent-activity-name",
+  "version": "0.2.0",
+  "private": true,
+  "description": "herdr plugin: rename agents to reflect what they're currently doing",
+  "type": "module",
+  "scripts": {
+    "check": "tsc --noEmit",
+    "test": "node tests/smoke.mts"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "typescript": "^5.9.3"
+  }
+}

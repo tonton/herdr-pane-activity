@@ -1,0 +1,47 @@
+id = "tonton.agent-activity-name"
+name = "Agent Activity Name"
+version = "0.2.0"
+min_herdr_version = "0.7.0"
+description = "Rename herdr agents to reflect what they're currently doing, using each pane's live terminal/resume title."
+platforms = ["linux", "macos", "windows"]
+
+[[actions]]
+id = "sync"
+title = "Sync agent names now"
+command = ["node", "sync.mts"]
+
+[[events]]
+on = "pane.created"
+command = ["node", "sync.mts"]
+
+[[events]]
+on = "pane.closed"
+command = ["node", "sync.mts"]
+
+[[events]]
+on = "pane.exited"
+command = ["node", "sync.mts"]
+
+[[events]]
+on = "pane.focused"
+command = ["node", "sync.mts"]
+
+[[events]]
+on = "pane.moved"
+command = ["node", "sync.mts"]
+
+[[events]]
+on = "pane.agent_detected"
+command = ["node", "sync.mts"]
+
+[[events]]
+on = "pane.agent_status_changed"
+command = ["node", "sync.mts"]
+
+[[events]]
+on = "workspace.focused"
+command = ["node", "sync.mts"]
+
+[[events]]
+on = "worktree.opened"
+command = ["node", "sync.mts"]
